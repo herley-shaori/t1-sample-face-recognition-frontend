@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title Page</title>
+    <style>
+        #videoElement{
+            width: 400px;
+            height: 300px;
+            background-color: #468dff;
+        }
+        #container{
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            margin-top: -150px;
+            margin-left: -50px;
+            width: 600px;
+            height: 400px;
+        }
+        .center-div {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        #loading-indicator {
+            color: #333;
+            font-weight: bold;
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Display Webcam</h1>
+    <div id="camera-container" class="center-div">
+<!--        <video autoplay="true" id="videoElement"/>-->
+        <video id="video" width="1024" height="512" autoplay></video>
+        <canvas id="canvas" width="400" height="300"></canvas>
+        <button id="captureButton">Capture Image</button>
+        <div id="loadingIndicator" class="hidden">Uploading...</div>
+    </div>
+    <script>
+        // Convert data URL to Blob
+        function dataURItoBlob(dataURI) {
+            const byteString = atob(dataURI.split(',')[1]);
+            const mimeString = dataURI.split(',')[0].split(':')[1].split(';')[0];
+            const arrayBuffer = new ArrayBuffer(byteString.length);
+            const uint8Array = new Uint8Array(arrayBuffer);
+            for (let i = 0; i < byteString.length; i++) {
+                uint8Array[i] = byteString.charCodeAt(i);
+            }
+            return new Blob([arrayBuffer], { type: mimeString });
+        }
+
+        let video = document.querySelector("#video");
+        if(navigator.mediaDevices.getUserMedia){
+            navigator.mediaDevices.getUserMedia({video:true}).then(function (stream){
+                video.srcObject = stream;
+            }).catch(function (error){
+                console.log("Something went wrong!")
+            });
+        }else{
+            console.log("getUserMedia not supported!")
+        }
+
+        captureButton.addEventListener("click", () => {
+            loadingIndicator.classList.remove("hidden"); // Show loading indicator
+            canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageDataURL = canvas.toDataURL("image/jpeg");
+            // var image = canvas.toDataURL("image/png").replace("image/png", "image/octet-stream");
+            // window.location=image;
+            const imageBlob = dataURItoBlob(imageDataURL);
+            // unggahKeS3(imageBlob);
+            const base64StringOnly = extractBase64FromDataURI(imageDataURL);
+        });
+
+        function extractBase64FromDataURI(dataURI) {
+            const parts = dataURI.split(",");
+            if (parts.length !== 2) {
+                return null;
+            }
+            const base64String = parts[1];
+            return base64String;
+        }
+
+        function unggahKeS3(gambarnya){
+            var data = "contoh.jpg";
+
+            var xhr = new XMLHttpRequest();
+            xhr.addEventListener("readystatechange", function() {
+                if(this.readyState === 4) {
+                    console.log(this.responseText);
+                }
+            });
+            xhr.open("PUT", "https://r5lxhhf2k6.execute-api.ap-southeast-1.amazonaws.com/DEV/temp-data-for-rekognition/contoh.jpg");
+            xhr.setRequestHeader("Content-Type", "image/jpeg");
+            xhr.setRequestHeader("X-Amz-Date", "20231222T124037Z");
+            xhr.setRequestHeader("Authorization", "AWS4-HMAC-SHA256 Credential=undefined/20231222/us-east-1/execute-api/aws4_request, SignedHeaders=content-length;content-type;host;x-amz-date, Signature=43aed1ae58d0b9af2394fc05711b99d34c666f327cf1ea00dd15d93d35a4d4ee");
+            xhr.send(gambarnya);
+        }
+
+        function getPresignedURL(){
+            // WARNING: For POST requests, body is set to null by browsers.
+            var data = JSON.stringify({
+                "filename": "contoh.jpg"
+            });
+
+            var xhr = new XMLHttpRequest();
+            // xhr.withCredentials = true;
+
+            xhr.addEventListener("readystatechange", function() {
+                if(this.readyState === 4) {
+                    uploadToS3(this.responseText)
+                }
+            });
+
+            xhr.open("POST", "https://r7lt08tnud.execute-api.ap-southeast-1.amazonaws.com/DEV/get-presigned-url");
+            xhr.setRequestHeader("Content-Type", "application/json");
+            xhr.setRequestHeader("x-api-key", "PUsmLa26oY5MlGIj6Cw4u6g6IUP9RWWFaVrsXdvi");
+            xhr.send(data);
+        }
+
+        function uploadToS3(presignedURL){
+            // WARNING: For POST requests, body is set to null by browsers.
+            presignedURL = JSON.parse(presignedURL)
+            var data = new FormData();
+            data.append("key", "contoh.jpg");
+            data.append("file","contoh.jpg");
+            data.append("AWSAccessKeyId", presignedURL['fields']['AWSAccessKeyId']);
+            data.append("x-amz-security-token", presignedURL['fields']['x-amz-security-token']);
+            data.append("policy", presignedURL['fields']['policy']);
+            data.append("signature", presignedURL['fields']['signature']);
+
+            var xhr = new XMLHttpRequest();
+            // xhr.withCredentials = true;
+
+            xhr.addEventListener("readystatechange", function() {
+                if(this.readyState === 4) {
+                    console.log(this.responseText);
+                }
+            });
+
+            xhr.open("PUT", "https://workspace-occupation-image-input.s3.amazonaws.com");
+            xhr.send(data);
+        }
+
+    </script>
+</body>
+</html>
